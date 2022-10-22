@@ -1,0 +1,52 @@
+{
+  "pieces": [
+    [0, {
+      "pieceType": "rd"
+    }],
+    [1, {
+      "pieceType": "kd"
+    }],
+    [2, {
+      "pieceType": "bd"
+    }],
+    [3, {
+      "pieceType": "qd"
+    }],
+    [4, {
+      "pieceType": "kd"
+    }],
+    [5, {
+      "pieceType": "bd"
+    }],
+    [6, {
+      "pieceType": "kd"
+    }],
+    [7, {
+      "pieceType": "rd"
+    }],
+    [8, {
+      "pieceType": "pd"
+    }],
+    [9, {
+      "pieceType": "pd"
+    }],
+    [10, {
+      "pieceType": "pd"
+    }],
+    [11, {
+      "pieceType": "pd"
+    }],
+    [12, {
+      "pieceType": "pd"
+    }],
+    [13, {
+      "pieceType": "pd"
+    }],
+    [14, {
+      "pieceType": "pd"
+    }],
+    [15, {
+      "pieceType": "pd"
+    }]
+  ]
+}
