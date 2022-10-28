@@ -4,6 +4,16 @@ import IPiece from "./types/IPiece";
 import {useChess} from "./ChessContext";
 import {useDrop} from "react-dnd";
 
+const getBackgroundColor = (dark: boolean, highlighted: boolean) => {
+    const vals = {
+        "true,true": "lightblue",
+        "true,false": "darkgray",
+        "false,true": "lightblue",
+        "false,false": "white"
+    }
+    return vals[`${dark},${highlighted}`];
+}
+
 const TileContainer = styled.div`
   width: 4rem;
   height: 4rem;
@@ -14,41 +24,40 @@ const TileContainer = styled.div`
   color: gray;
 `
 
-interface IdHas{
-    id: string
-}
-
 interface TileProps {
     black: boolean
     piece?: IPiece
-    onClick?: () => void
+    highLighted: boolean,
     i: number
 }
 
-const Tile = ({black, piece, onClick, i}: TileProps) => {
-    const {changePosition} = useChess();
+const Tile = ({black, piece, highLighted, i}: TileProps) => {
+    const {changePosition, pieces, moveSelectedPiece, getSelectedPiecePosition} = useChess();
 
-    const [, drop] = useDrop(
+    const [{canDrop}, drop] = useDrop(
         () => ({
             accept: 'PIECE',
-            drop: (d:IdHas, monitor) => {
-
-                changePosition(d.id, i)
-
-                return {bois: 1};
+            canDrop: () => true,
+            drop: (d: {id: string}, monitor) => {
+                if (getSelectedPiecePosition() != i) {
+                    changePosition(d.id, i)
+                }
             },
             collect: (m_) => {
-                m_.getDropResult();
-                return 1
+                return {canDrop: m_.canDrop()};
             }
         }),
 
-        []
+        [pieces]
     )
 
 
+    const color = canDrop ? 'blue' : getBackgroundColor(black,highLighted)
+
+
     return <TileContainer ref={drop}
-                          role={'Dustbin'} color={black ? 'black' : 'white'} onClick={onClick}>
+                          color={color} onClick={() => moveSelectedPiece(i)}>
+        {i}
         {piece && <Piece {...piece}/>}
     </TileContainer>
 }

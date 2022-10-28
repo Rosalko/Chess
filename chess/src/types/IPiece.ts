@@ -2,7 +2,7 @@ export default interface IPiece {
     id: string,
     pieceType: PieceType,
     pieceColor: PieceColor,
-    position: number
+    position: number,
 }
 
 export enum PieceType {

@@ -1,6 +1,7 @@
-import {useDrag} from "react-dnd";
+import {useDrag, DragPreviewImage} from "react-dnd";
 import styled from "styled-components";
 import IPiece, {PieceColor} from "./types/IPiece";
+import {useChess} from "./ChessContext";
 
 const PieceW = styled.div`
   width: 50%;
@@ -8,26 +9,36 @@ const PieceW = styled.div`
   color: ${p => p.color}
 `
 
-const Piece = ({pieceType, pieceColor}: IPiece) => {
-    const [{isDragging}, drag] = useDrag(() => ({
+const Piece = ({pieceType, pieceColor, id}: IPiece) => {
+    const {setSelectedPiece, canDrag, setHighlightedPositions} = useChess();
+    const [{isDragging}, drag, preview] = useDrag(() => ({
+        beginDrag : null,
+        canDrag : canDrag(id),
         type: 'PIECE',
-        item: {type: pieceType, id: "0nd"},
+        item: {pieceType, id},
         collect: (monitor) => {
             return {
                 isDragging: monitor.isDragging()
             }
         }
-    }))
+    }), [id,canDrag])
+
+    const source = `/pieces/Chess_${pieceType}${pieceColor}t45.svg`
     let color = pieceColor == PieceColor.black ? 'darkgray' : 'lightgray';
     if (isDragging) {
         color = 'yellow'
     }
-    return (
+    return (<>
+        <DragPreviewImage connect={preview} src={source}/>
         <div role="Handle" ref={drag}>
-            <PieceW  color={color} onClick={() => console.log(pieceType)}>
-                {pieceType + pieceColor}
+            <PieceW ref={drag} color={color} onClick={(e) => {
+                e.stopPropagation()
+                setSelectedPiece(id)
+            }}>
+                <img src={source}/>
             </PieceW>
-        </div>)
+        </div>
+    </>)
 }
 
 export default Piece;
