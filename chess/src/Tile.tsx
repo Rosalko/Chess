@@ -5,13 +5,13 @@ import {useChess} from "./ChessContext";
 import {useDrop} from "react-dnd";
 
 const getBackgroundColor = (dark: boolean, highlighted: boolean) => {
-    const vals = {
+    const values = {
         "true,true": "lightblue",
         "true,false": "darkgray",
         "false,true": "lightblue",
         "false,false": "white"
     }
-    return vals[`${dark},${highlighted}`];
+    return values[`${dark},${highlighted}`];
 }
 
 const TileContainer = styled.div`
@@ -32,27 +32,27 @@ interface TileProps {
 }
 
 const Tile = ({black, piece, highLighted, i}: TileProps) => {
-    const {changePosition, pieces, moveSelectedPiece, getSelectedPiecePosition} = useChess();
+    const {changePosition, pieces, moveSelectedPiece, canDrop} = useChess();
 
-    const [{canDrop}, drop] = useDrop(
+    const [{cD}, drop] = useDrop(
         () => ({
             accept: 'PIECE',
-            canDrop: () => true,
-            drop: (d: {id: string}, monitor) => {
-                if (getSelectedPiecePosition() != i) {
+            canDrop: (d: IPiece) => canDrop(d.id, i),
+            drop: (d: IPiece, _) => {
+                if (d.position != i) {
                     changePosition(d.id, i)
                 }
             },
             collect: (m_) => {
-                return {canDrop: m_.canDrop()};
+
+                return {cD: m_.canDrop() };
             }
         }),
-
         [pieces]
     )
 
 
-    const color = canDrop ? 'blue' : getBackgroundColor(black,highLighted)
+    const color = cD ? 'blue' : getBackgroundColor(black, highLighted)
 
 
     return <TileContainer ref={drop}

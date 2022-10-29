@@ -1,4 +1,4 @@
-import {createContext, FC, PropsWithChildren, useCallback, useContext, useEffect, useState,} from "react";
+import {createContext, FC, PropsWithChildren, useCallback, useContext, useState,} from "react";
 import IPiece, {PieceColor} from "./types/IPiece";
 import {getColorFromId, moves} from "./Utility";
 
@@ -29,6 +29,7 @@ interface ChessContextType {
     highlightedPositions: number[]
 
     canDrag: (id: string) => boolean
+    canDrop: (id: string, position: number) => boolean
 }
 
 export const ChessContext = createContext<ChessContextType>(
@@ -42,10 +43,13 @@ export const ChessProvider: FC<PropsWithChildren<{}>> = ({children}) => {
     const [selectedPiece, setSelectedPiece] = useState("");
     const [highlightedPositions, setHighlightedPositions] = useState<number[]>([]);
     const [currentPlayer, setCurrentPlayer] = useState(PieceColor.white)
+    const [debug, ] = useState(true);
 
     const switchPlayer = useCallback(() => {
         setCurrentPlayer((prev) => prev === PieceColor.white ? PieceColor.black : PieceColor.white);
     }, [currentPlayer])
+
+
 
     const getPieces = () => pieces;
     const getColorPieces = (black: boolean) => pieces.filter(p =>
@@ -59,14 +63,13 @@ export const ChessProvider: FC<PropsWithChildren<{}>> = ({children}) => {
     }
 
     const getPiecePosition = (id: string) => {
-        debugger
         return pieces.find(p => p.id === id)?.position ?? -1
     };
     const getPieceById = (id: string) => pieces.find(p => p.id === id)!
 
     const changePosition = (id: string, newPosition: number) => {
         const newP = pieces.find(p => p.id === id)!;
-        if (newP.pieceColor != currentPlayer) {
+        if (newP.pieceColor != currentPlayer && !debug) {
             return
         }
         setPieces(pieces
@@ -87,7 +90,7 @@ export const ChessProvider: FC<PropsWithChildren<{}>> = ({children}) => {
 
     const setPiecesExt = (newPieces: IPiece[]) => setPieces(newPieces);
     const setSelectedPieceExt = useCallback((id: string) => {
-        if (id.at(id.length - 1) != currentPlayer) {
+        if (id.at(id.length - 1) != currentPlayer && !debug) {
             return;
         }
         if (id === selectedPiece) {
@@ -102,7 +105,13 @@ export const ChessProvider: FC<PropsWithChildren<{}>> = ({children}) => {
     }, [currentPlayer, getPiecePosition])
 
     const canDrag = (id: string): boolean => {
-        return getColorFromId(id) === currentPlayer;
+        return getColorFromId(id) === currentPlayer || debug;
+    }
+
+    const canDrop = (id: string, position: number): boolean => {
+
+        const piece = getPieceById(id);
+        return  moves(piece).findIndex(p => p === position) != -1 || debug;
     }
 
     return <ChessContext.Provider value={{
@@ -119,7 +128,8 @@ export const ChessProvider: FC<PropsWithChildren<{}>> = ({children}) => {
         highlightedPositions,
         setHighlightedPositions,
 
-        canDrag
+        canDrag,
+        canDrop
     }}>
         {children}
     </ChessContext.Provider>

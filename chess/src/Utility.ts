@@ -29,7 +29,6 @@ const isNumeric = (chr: string): Boolean => '0' <= chr && chr <= '9';
 
 
 export const boardFromFen = (fen: string): IPiece[] => {
-
     const counts: { [id: string]: number } = {};
     Object.values(PieceType).forEach(pT => {
         Object.values(PieceColor)
@@ -37,8 +36,6 @@ export const boardFromFen = (fen: string): IPiece[] => {
                 counts[pT + pC] = 0;
             })
     })
-    console.log(counts);
-
     const fenRows = fen.split("/");
     let position = 0;
     const result: IPiece[] = []
@@ -58,16 +55,23 @@ export const boardFromFen = (fen: string): IPiece[] => {
             position += 1;
             pieces.push(piece);
         })
-
         result.push(...pieces);
 
     })
-
-
     return result;
 
 }
 
+const boardSize = 8;
+const tileNumber = boardSize * boardSize;
+const whitePawnRow = 6;
+const blackPawnRow = 1;
+
+export const getBoard = (pieces: IPiece[]): Board => {
+    return new Array(64).fill(null).map((_, i) => pieces.find(p => p.position === i) ?? null);
+}
+const getRow = (n: number): number => Math.floor(n / boardSize);
+const getColumn = (n: number): number => n % boardSize;
 
 const range = (start: number, end: number, modifier?: (n: number) => number) => {
     if (!modifier) {
@@ -87,6 +91,7 @@ const zip = (a: number[], b: number[]) => a.map(function (e, i) {
 })
 
 const numberAscSort = (a: number, b: number) => a - b;
+const numberDescSort = (a: number, b: number) => b - a;
 
 const diagonalL = () => zip(verticalLine(), horizontal()).map(([a, b]) => a + b);
 const diagonalR = () => zip(verticalLine().reverse(), horizontal()).map(([a, b]) => a + b);
@@ -97,7 +102,7 @@ export const rookMoves = () => verticalLine().concat(horizontal());
 
 export const queenMoves = () => rookMoves().concat(bishopMoves());
 
-export const pawnMoves = () => range(1, 3, n => 8*n).concat(range(1, 3, n=> -8*n));
+export const pawnMoves = () => [16, -16, 8, -8, 7, -7, 9, -9];
 
 export const kingMoves = () => [8, -8, 7, -7, 9, -9, 1, -1];
 
@@ -120,29 +125,134 @@ const movesByType = (type: PieceType): number[] => {
     }
 }
 
-export const moves = ({pieceType, position, pieceColor}: IPiece): number[] => {
-    let moves = movesByType(pieceType);
-    switch (pieceType){
-        case PieceType.pawn:
-            const comp: (n: number) => boolean = pieceColor === PieceColor.white ? n => n < 0 : n => n > 0;
-            moves = moves.filter(comp);
-            break
+type pieceComp = ((n: number) => boolean);
+
+const pawnComp = (row: number, pieceColor: PieceColor): pieceComp =>
+    pieceColor === PieceColor.white ?
+        n => (row === whitePawnRow && (getRow(n) < row)) || row - getRow(n) === 1
+        :
+        n =>
+            (row === blackPawnRow && getRow(n) > row) || row - getRow(n) === -1
+;
+const rookComp = (row: number, column: number): pieceComp => n => getRow(n) === row || getColumn(n) === column;
+const bishopComp = (parity: number): pieceComp => n => (getColumn(n) + getRow(n)) % 2 == parity;
+const knightComp = (row: number, column: number): pieceComp => n => Math.abs(getColumn(n) - column) <= 2 && Math.abs(getRow(n) - row) <= 2;
+const queenComp = (row: number, column: number): pieceComp => {
+    return n => {
+        const queenParity = (column + row) % 2;
+        const tileRow = getRow(n);
+        const tileColumn = getColumn(n);
+        const tileParity = (tileRow + tileColumn) % 2
+        const verticalDistance = Math.abs(tileRow - row);
+        const horizontalDistance = Math.abs(tileColumn - column);
+        const distance = verticalDistance + horizontalDistance;
+        return row == tileRow ||
+            column == tileColumn ||
+            (tileParity === queenParity && verticalDistance > 1 && horizontalDistance > 1) ||
+            (distance == 2);
     }
-    return moves.map(move => move + position).filter(move => move <= 63 && move >= 0).sort(numberAscSort);
+}
+
+const moveComp = ({pieceType, pieceColor, position}: IPiece): pieceComp => {
+    const row = getRow(position);
+    const column = getColumn(position);
+    switch (pieceType) {
+        case PieceType.pawn:
+            return pawnComp(row, pieceColor);
+        case PieceType.rook:
+            return rookComp(row, column);
+        case PieceType.bishop:
+            return bishopComp((row + column) % 2);
+        case PieceType.knight:
+            return knightComp(row, column);
+        case PieceType.queen:
+            return queenComp(row, column);
+        case PieceType.king:
+            return () => true;
+    }
+}
+
+export const moves = (piece: IPiece): number[] => {
+    const comp = moveComp(piece);
+    let moves = movesByType(piece.pieceType);
+    return moves.map(move => move + piece.position).filter(move => move < tileNumber && move >= 0 && comp(move)).sort(numberAscSort);
 }
 
 type Board = Array<IPiece | null>
 
-
-const isKingInDanger = (board: Board, color: PieceColor): boolean => {
+export const isKingInDanger = (board: Board, color: PieceColor): boolean => {
     const kingPosition = board.findIndex(p => p?.pieceType === PieceType.king && p.pieceColor === color);
+    return board.filter(p => p !== null).some(p => canAttack(p!, kingPosition, board));
+}
 
+type MoveDirectionPredicate = (currentPosition: number, nextPosition: number) => boolean
 
-    return false;
+const isDiagonalMove: MoveDirectionPredicate = (currentPosition, nextPosition) => getColumn(currentPosition) !== getColumn(nextPosition) && getRow(currentPosition) !== getRow(nextPosition);
+const isStraightMove: MoveDirectionPredicate = (currentPosition, nextPosition) => getColumn(currentPosition) === getColumn(nextPosition) || getRow(currentPosition) === getRow(nextPosition);
+const isLeftMove: MoveDirectionPredicate = (currentPosition, nextPosition) => getColumn(currentPosition) > getColumn(nextPosition);
+const isRightMove: MoveDirectionPredicate = (c, n) => getColumn(c) < getColumn(n);
+const isUpMove: MoveDirectionPredicate = (c, n) => getRow(c) > getRow(n);
+const isDownMove: MoveDirectionPredicate = (c, n) => getRow(c) < getRow(n);
+
+export const getReachablePositionsFilter = (pieceColor: PieceColor, board: Board) => {
+    return (moveGroup: number[]) => {
+        let newMovesGroup: number[] = [];
+        let shouldStop = false;
+        moveGroup.forEach(move => {
+            debugger
+            if (shouldStop) {
+                return
+            }
+            if (board[move] !== null) {
+                shouldStop = true;
+            }
+            if (board[move]?.pieceColor !== pieceColor) {
+                newMovesGroup = [...newMovesGroup, move];
+            }
+        })
+        return newMovesGroup;
+    }
+}
+
+const getDirectedMoves = (moves: number[], currentPosition: number) => {
+    const diagonalMoves = moves.filter(m => isDiagonalMove(currentPosition, m));
+    const straightMoves = moves.filter(m => isStraightMove(currentPosition, m));
+    const lDiagonalMoves = diagonalMoves.filter(m => isLeftMove(currentPosition, m));
+    const rDiagonalMoves = diagonalMoves.filter(m => isRightMove(currentPosition, m));
+    const lStraightMoves = straightMoves.filter(m => isLeftMove(currentPosition, m)).reverse();
+    const rStraightMoves = straightMoves.filter(m => isRightMove(currentPosition, m));
+    const uLDiagonalMoves = lDiagonalMoves.filter(m => isUpMove(currentPosition, m)).reverse();
+    const dLDiagonalMoves = lDiagonalMoves.filter(m => isDownMove(currentPosition, m));
+    const uRDiagonalMoves = rDiagonalMoves.filter(m => isUpMove(currentPosition, m));
+    const dRDiagonalMoves = rDiagonalMoves.filter(m => isDownMove(currentPosition, m));
+    const uStraightMoves = straightMoves.filter(m => isUpMove(currentPosition, m)).reverse();
+    const dStraightMoves = straightMoves.filter(m => isDownMove(currentPosition, m));
+
+    return [lStraightMoves, rStraightMoves, uStraightMoves, dStraightMoves,
+        uLDiagonalMoves, dLDiagonalMoves, uRDiagonalMoves, dRDiagonalMoves]
+
+}
+
+const getDirectedMovesForPiece = (piece: IPiece) => {
+    const availableMoves = moves(piece);
+    return getDirectedMoves(availableMoves, piece.position);
+}
+
+export const getReachablePositions = (piece: IPiece, position: number, board: Board) => {
+    const {pieceColor, position: piecePosition, pieceType} = piece;
+    const reachablePositions = getDirectedMovesForPiece(piece).flatMap(getReachablePositionsFilter(pieceColor, board));
+    return reachablePositions
+        .filter(p => (pieceType !== PieceType.pawn) || (isDiagonalMove(piecePosition, p) && board[p] !== null) || !isDiagonalMove(piecePosition, p))
+
+}
+
+export const canAttack = (piece: IPiece, position: number, board: Board): boolean => {
+    return getReachablePositions(piece, position, board)
+        .filter((p) => piece.pieceType !== PieceType.pawn || isDiagonalMove(p, piece.position))
+        .findIndex(p => p === position) !== -1;
 }
 
 export const getValidMove = (board: Board, movingPiece: IPiece): number[] => {
     const isKingAttacked = isKingInDanger(board, movingPiece.pieceColor);
-
     return [];
 }

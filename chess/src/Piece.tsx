@@ -9,13 +9,18 @@ const PieceW = styled.div`
   color: ${p => p.color}
 `
 
-const Piece = ({pieceType, pieceColor, id}: IPiece) => {
-    const {setSelectedPiece, canDrag, setHighlightedPositions} = useChess();
+const Piece = ({pieceType, pieceColor, id,position}: IPiece) => {
+    const {setSelectedPiece, canDrag} = useChess();
     const [{isDragging}, drag, preview] = useDrag(() => ({
         beginDrag : null,
         canDrag : canDrag(id),
         type: 'PIECE',
-        item: {pieceType, id},
+        item: () =>
+        {
+            //TODO since this is a function, this fires in the beginning and I can call for calculation of available moves
+            console.log("het")
+            return {pieceType,pieceColor, id, position}
+        },
         collect: (monitor) => {
             return {
                 isDragging: monitor.isDragging()
@@ -35,7 +40,7 @@ const Piece = ({pieceType, pieceColor, id}: IPiece) => {
                 e.stopPropagation()
                 setSelectedPiece(id)
             }}>
-                <img src={source}/>
+                <img src={source} alt={""}/>
             </PieceW>
         </div>
     </>)
