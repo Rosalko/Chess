@@ -48,7 +48,7 @@ const Tile = ({black, piece, highLighted, i}: TileProps) => {
                 return {cD: m_.canDrop() };
             }
         }),
-        [pieces]
+        [pieces, canDrop]
     )
 
 

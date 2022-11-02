@@ -127,13 +127,11 @@ const movesByType = (type: PieceType): number[] => {
 
 type pieceComp = ((n: number) => boolean);
 
-const pawnComp = (row: number, pieceColor: PieceColor): pieceComp =>
-    pieceColor === PieceColor.white ?
-        n => (row === whitePawnRow && (getRow(n) < row)) || row - getRow(n) === 1
-        :
-        n =>
-            (row === blackPawnRow && getRow(n) > row) || row - getRow(n) === -1
-;
+const pawnComp = (row: number, column: number, pieceColor: PieceColor): pieceComp =>
+    n => Math.abs(column - getColumn(n)) <= 1 && (pieceColor === PieceColor.white ?
+        (row === whitePawnRow && (getRow(n) < row)) || row - getRow(n) === 1 :
+        (row === blackPawnRow && getRow(n) > row) || row - getRow(n) === -1);
+
 const rookComp = (row: number, column: number): pieceComp => n => getRow(n) === row || getColumn(n) === column;
 const bishopComp = (parity: number): pieceComp => n => (getColumn(n) + getRow(n)) % 2 == parity;
 const knightComp = (row: number, column: number): pieceComp => n => Math.abs(getColumn(n) - column) <= 2 && Math.abs(getRow(n) - row) <= 2;
@@ -158,7 +156,7 @@ const moveComp = ({pieceType, pieceColor, position}: IPiece): pieceComp => {
     const column = getColumn(position);
     switch (pieceType) {
         case PieceType.pawn:
-            return pawnComp(row, pieceColor);
+            return pawnComp(row,column, pieceColor);
         case PieceType.rook:
             return rookComp(row, column);
         case PieceType.bishop:
@@ -175,14 +173,16 @@ const moveComp = ({pieceType, pieceColor, position}: IPiece): pieceComp => {
 export const moves = (piece: IPiece): number[] => {
     const comp = moveComp(piece);
     let moves = movesByType(piece.pieceType);
-    return moves.map(move => move + piece.position).filter(move => move < tileNumber && move >= 0 && comp(move)).sort(numberAscSort);
+    return moves.map(move => move + piece.position)
+        .filter(move => move < tileNumber && move >= 0 && comp(move))
+        .sort(numberAscSort);
 }
 
 type Board = Array<IPiece | null>
 
 export const isKingInDanger = (board: Board, color: PieceColor): boolean => {
     const kingPosition = board.findIndex(p => p?.pieceType === PieceType.king && p.pieceColor === color);
-    return board.filter(p => p !== null).some(p => canAttack(p!, kingPosition, board));
+    return board.filter(p => p !== null && p.pieceColor !== color).some(p => canAttack(p!, kingPosition, board));
 }
 
 type MoveDirectionPredicate = (currentPosition: number, nextPosition: number) => boolean
@@ -193,19 +193,26 @@ const isLeftMove: MoveDirectionPredicate = (currentPosition, nextPosition) => ge
 const isRightMove: MoveDirectionPredicate = (c, n) => getColumn(c) < getColumn(n);
 const isUpMove: MoveDirectionPredicate = (c, n) => getRow(c) > getRow(n);
 const isDownMove: MoveDirectionPredicate = (c, n) => getRow(c) < getRow(n);
+const isKnightMove: MoveDirectionPredicate = (c, n) => {
+    const cRow = getRow(c);
+    const cCol = getColumn(c);
+    const nRow = getRow(n);
+    const nCol = getColumn(n);
+    return Math.abs(cRow-nRow) === 2 && Math.abs(cCol - nCol) == 1 || Math.abs(cRow-nRow) === 1 && Math.abs(cCol - nCol) === 2
+}
 
 export const getReachablePositionsFilter = (pieceColor: PieceColor, board: Board) => {
     return (moveGroup: number[]) => {
         let newMovesGroup: number[] = [];
         let shouldStop = false;
         moveGroup.forEach(move => {
-            debugger
             if (shouldStop) {
                 return
             }
             if (board[move] !== null) {
                 shouldStop = true;
             }
+
             if (board[move]?.pieceColor !== pieceColor) {
                 newMovesGroup = [...newMovesGroup, move];
             }
@@ -215,6 +222,7 @@ export const getReachablePositionsFilter = (pieceColor: PieceColor, board: Board
 }
 
 const getDirectedMoves = (moves: number[], currentPosition: number) => {
+    const knightMoves = moves.filter(m => isKnightMove(currentPosition, m)).map(m => [m]);
     const diagonalMoves = moves.filter(m => isDiagonalMove(currentPosition, m));
     const straightMoves = moves.filter(m => isStraightMove(currentPosition, m));
     const lDiagonalMoves = diagonalMoves.filter(m => isLeftMove(currentPosition, m));
@@ -223,13 +231,13 @@ const getDirectedMoves = (moves: number[], currentPosition: number) => {
     const rStraightMoves = straightMoves.filter(m => isRightMove(currentPosition, m));
     const uLDiagonalMoves = lDiagonalMoves.filter(m => isUpMove(currentPosition, m)).reverse();
     const dLDiagonalMoves = lDiagonalMoves.filter(m => isDownMove(currentPosition, m));
-    const uRDiagonalMoves = rDiagonalMoves.filter(m => isUpMove(currentPosition, m));
+    const uRDiagonalMoves = rDiagonalMoves.filter(m => isUpMove(currentPosition, m)).reverse();
     const dRDiagonalMoves = rDiagonalMoves.filter(m => isDownMove(currentPosition, m));
     const uStraightMoves = straightMoves.filter(m => isUpMove(currentPosition, m)).reverse();
     const dStraightMoves = straightMoves.filter(m => isDownMove(currentPosition, m));
 
     return [lStraightMoves, rStraightMoves, uStraightMoves, dStraightMoves,
-        uLDiagonalMoves, dLDiagonalMoves, uRDiagonalMoves, dRDiagonalMoves]
+        uLDiagonalMoves, dLDiagonalMoves, uRDiagonalMoves, dRDiagonalMoves, ...knightMoves]
 
 }
 
@@ -238,21 +246,56 @@ const getDirectedMovesForPiece = (piece: IPiece) => {
     return getDirectedMoves(availableMoves, piece.position);
 }
 
-export const getReachablePositions = (piece: IPiece, position: number, board: Board) => {
+export const getReachablePositions = (piece: IPiece, board: Board) => {
     const {pieceColor, position: piecePosition, pieceType} = piece;
-    const reachablePositions = getDirectedMovesForPiece(piece).flatMap(getReachablePositionsFilter(pieceColor, board));
+    const reachablePositions = getDirectedMovesForPiece(piece)
+        .flatMap(getReachablePositionsFilter(pieceColor, board));
     return reachablePositions
-        .filter(p => (pieceType !== PieceType.pawn) || (isDiagonalMove(piecePosition, p) && board[p] !== null) || !isDiagonalMove(piecePosition, p))
-
+        .filter(p => (pieceType !== PieceType.pawn) ||
+            (isDiagonalMove(piecePosition, p) && board[p] !== null) ||
+            (!isDiagonalMove(piecePosition, p) && board[p] === null))
 }
 
 export const canAttack = (piece: IPiece, position: number, board: Board): boolean => {
-    return getReachablePositions(piece, position, board)
+    return getReachablePositions(piece, board)
         .filter((p) => piece.pieceType !== PieceType.pawn || isDiagonalMove(p, piece.position))
         .findIndex(p => p === position) !== -1;
 }
 
-export const getValidMove = (board: Board, movingPiece: IPiece): number[] => {
-    const isKingAttacked = isKingInDanger(board, movingPiece.pieceColor);
-    return [];
+export const getDefendingPositions = (board: Board, piece: IPiece, reachablePositions?: number[]): number[] => {
+    const {pieceColor: color} = piece;
+    if (reachablePositions === undefined) {
+        reachablePositions = getReachablePositions(piece, board);
+    }
+    return reachablePositions.filter(newPosition => {
+        const possibleBoard = board.map((p, i) => {
+            if (i === piece.position) {
+                return null
+            }
+            if (i === newPosition) {
+                return {...piece, position: newPosition};
+            }
+            return p
+        });
+        return !isKingInDanger(possibleBoard, color)
+    });
+}
+
+export const getValidMoves = (board: Board, movingPiece: IPiece): number[] => {
+    const {pieceColor: color} = movingPiece;
+    const isKingAttacked = isKingInDanger(board, color);
+    if (movingPiece.pieceType === PieceType.bishop){
+        debugger
+    }
+    const reachablePositions = getReachablePositions(movingPiece, board);
+    return getDefendingPositions(board, movingPiece, reachablePositions);
+}
+
+type MoveMap = Map<string, number[]>
+
+export const getMovesForColor = (board: Board, player: PieceColor): MoveMap => {
+    const pieces = board.filter(p => p?.pieceColor === player) as IPiece[];
+    const movesPerPiece: [string, number[]][] = pieces.map(p => [p.id, getValidMoves(board, p)]);
+
+    return new Map(movesPerPiece);
 }

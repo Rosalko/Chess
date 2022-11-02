@@ -18,10 +18,9 @@ const getTileColor = (index: number) => (index % 2 != Math.floor(index / 8) % 2)
 
 const Board = () => {
     const tiles = Array(64).fill(0).map((_, i) => i);
-    const {pieces, setPieces, changePosition, highlightedPositions} = useChess();
+    const {pieces, setPieces, highlightedPositions, ddd} = useChess();
 
     const defaultState = defaultGame;
-
     useEffect(() => {
         setPieces(boardFromFen( "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR"))
     }, [])
